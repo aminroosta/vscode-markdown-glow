@@ -24,13 +24,27 @@ function fontSizeDecoration(fontSize: string) {
 		rangeBehavior: vscode.DecorationRangeBehavior.OpenOpen,
 	});
 }
+function fullHeightDecoration(text: string, lineHeight: number, { compact = false, percentage = 30 } = {}) {
+	return vscode.window.createTextEditorDecorationType({
+		textDecoration: 'none; font-size: 0.001em',
+		rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+		after: {
+			contentText: text,
+			textDecoration: `none; font-size: ${lineHeight}em${compact ? '; letter-spacing: -0.2em' : ''}`,
+			color: `color-mix(in srgb, var(--vscode-editor-background) ${100 - percentage}%, var(--vscode-editor-foreground) ${percentage}%);`,
+		}
+	});
+}
 
 const symbols = [
 	'', ' ', '_', '●', '○', '◆', '◇', '█', '▒', '↪', '↩',
+	'│', '┬', '┼', '├', '┌', '─',
 	'⫸', '⫸⫸', '⫸⫸⫸', '⫸⫸⫸⫸', '⫸⫸⫸⫸⫸', '⫸⫸⫸⫸⫸⫸',
 	'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-	'code', 'fade',
+	'code', 'fade', '◧'
 ];
+
+
 const lookup = {} as any;
 emoji.forEach(e => {
 	e.aliases.forEach(a => {
@@ -181,6 +195,52 @@ function NodeProcessor() {
 				new vscode.Position(s.line - 1, e.column - 2),
 				new vscode.Position(s.line - 1, e.column - 1)
 			));
+		} else if (type === "table") {
+			for (let i = s.line - 1; i < e.line; ++i) {
+				ranges['│'].push(new vscode.Range(
+					new vscode.Position(i, s.column - 1),
+					new vscode.Position(i, s.column)
+				));
+			}
+			// The separator line, should match the header
+			let line = lines[s.line - 1].trimEnd();
+			for (let column = s.column; column < line.length; ++column) {
+				if (line[column] === '|') {
+					let char = column === (line.length - 1) || column === s.column ? '│' : '┼';
+					ranges[char].push(new vscode.Range(
+						new vscode.Position(s.line, column),
+						new vscode.Position(s.line, column + 1)
+					));
+				} else {
+					ranges['─'].push(new vscode.Range(
+						new vscode.Position(s.line, column),
+						new vscode.Position(s.line, column + 1)
+					));
+				}
+			}
+			if (e.column > line.length) {
+				ranges[''].push(new vscode.Range(
+					new vscode.Position(s.line, line.length),
+					new vscode.Position(s.line, e.column)
+				));
+			}
+		} else if (type === "tableCell") {
+			let line = lines[s.line - 1];
+			let end = Math.min(e.column, line.trimEnd().length);
+			ranges['│'].push(new vscode.Range(
+				new vscode.Position(s.line - 1, end - 1),
+				new vscode.Position(s.line - 1, end)
+			));
+		} else if (type === "image") {
+			ranges['◧'].push(new vscode.Range(
+				new vscode.Position(s.line - 1, s.column - 1),
+				new vscode.Position(s.line - 1, s.column + 1)
+			));
+
+			ranges[''].push(new vscode.Range(
+				new vscode.Position(s.line - 1, s.column + 1 + node.alt.length),
+				new vscode.Position(e.line - 1, e.column - 1)
+			));
 		}
 
 		if (node.children) {
@@ -199,30 +259,11 @@ export function activate(context: vscode.ExtensionContext) {
 	const decorationTypes = {
 		'': textReplacementDecoration(''),
 		' ': textReplacementDecoration(' '),
-		// '_': textReplacementDecoration('_'.repeat(80)),
 		'_': vscode.window.createTextEditorDecorationType({
 			textDecoration: 'none; border-bottom: 1px solid var(--vscode-editor-foreground); width: 100vw; display: inline-block; position: relative; top: -50%',
 			color: 'transparent',
 			isWholeLine: true,
 			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
-		}),
-		'█': vscode.window.createTextEditorDecorationType({
-			textDecoration: 'none; font-size: 0.001em',
-			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
-			after: {
-				contentText: '█',
-				textDecoration: `none; font-size: ${lineHeight}em; letter-spacing: -0.2em`,
-				color: 'color-mix(in srgb, var(--vscode-editor-background) 70%, var(--vscode-editor-foreground) 30%);',
-			}
-		}),
-		'▒': vscode.window.createTextEditorDecorationType({
-			textDecoration: 'none; font-size: 0.001em',
-			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
-			after: {
-				contentText: '▒',
-				textDecoration: `none; font-size: ${lineHeight}em`,
-				color: 'color-mix(in srgb, var(--vscode-editor-background) 70%, var(--vscode-editor-foreground) 30%);',
-			}
 		}),
 		'code': vscode.window.createTextEditorDecorationType({
 			backgroundColor: 'color-mix(in srgb, var(--vscode-editor-background) 90%, var(--vscode-editor-foreground) 5%);',
@@ -233,9 +274,19 @@ export function activate(context: vscode.ExtensionContext) {
 			textDecoration: 'none; opacity: 0',
 			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
 		}),
+		'█': fullHeightDecoration('█', lineHeight, { compact: true }),
+		'▒': fullHeightDecoration('▒', lineHeight),
+		'│': fullHeightDecoration('│', lineHeight, { compact: true }),
+		'┬': textReplacementDecoration('┬'),
+		'┼': fullHeightDecoration('┼', lineHeight, { compact: true }),
+		'─': fullHeightDecoration('─', lineHeight, { compact: true }),
+		'├': textReplacementDecoration('├'),
+		'┌': textReplacementDecoration('┌'),
 		'●': textReplacementDecoration('●'),
 		'↩': textReplacementDecoration('↩', 'none; font-weight: bold'),
 		'↪': textReplacementDecoration(' ↪', 'none; font-weight: bold'),
+		// '◧': textReplacementDecoration('◧ '),
+		'◧': fullHeightDecoration('◧ ', lineHeight, { percentage: 80 }),
 		'○': textReplacementDecoration('○'),
 		'◆': textReplacementDecoration('◆'),
 		'◇': textReplacementDecoration('◇'),
@@ -258,27 +309,38 @@ export function activate(context: vscode.ExtensionContext) {
 	Object.values(decorationTypes).forEach(
 		decorationType => context.subscriptions.push(decorationType)
 	);
+	let cacheStore = {} as any;
 	async function decorateEditor(editor: vscode.TextEditor) {
 		if (editor.document.languageId === 'markdown') {
-			const { fromMarkdown } = await mdast_util_from_markdown;
-			const { gfmFromMarkdown, gfmToMarkdown } = await mdast_util_gfm;
-			const { gfm } = await micromark_extension_gfm;
-			let selection = editor.selection;
+			const fileName = editor.document.fileName;
+			let cache = cacheStore[fileName];
 			let text = editor.document.getText();
+			let ranges = {} as any;
+			if (cache && cache.text === text) {
+				ranges = cache.ranges;
+			} else {
+				const { fromMarkdown } = await mdast_util_from_markdown;
+				const { gfmFromMarkdown, gfmToMarkdown } = await mdast_util_gfm;
+				const { gfm } = await micromark_extension_gfm;
 
-			const tree = fromMarkdown(text, {
-				extensions: [gfm()],
-				mdastExtensions: [gfmFromMarkdown()]
-			});
+				const tree = fromMarkdown(text, {
+					extensions: [gfm()],
+					mdastExtensions: [gfmFromMarkdown()]
+				});
 
-			const processor = NodeProcessor();
-			processor.process(tree, text.split('\n'));
-			const ranges = processor.getRanges();
+				const processor = NodeProcessor();
+				processor.process(tree, text.split('\n'));
+				ranges = processor.getRanges();
+
+				cacheStore[fileName] = { text, ranges };
+			}
+
+			let selection = editor.selection;
 			for (const s of Object.keys(ranges)) {
 				const decorationType = (decorationTypes as any)[s];
 				let targetRanges = ranges[s];
 				if (s !== 'code') {
-					targetRanges = ranges[s].filter(r => r.start.line !== selection.start.line);
+					targetRanges = ranges[s].filter((r: any) => r.start.line !== selection.start.line);
 				}
 
 				editor.setDecorations(decorationType, targetRanges);
