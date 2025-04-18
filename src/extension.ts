@@ -21,7 +21,7 @@ function fontSizeDecoration(fontSize: string) {
 }
 
 const symbols = [
-	'', '_', '●', '○', '◆', '◇', '█',
+	'', '_', '●', '○', '◆', '◇', '█', '▒',
 	'⫸', '⫸⫸', '⫸⫸⫸', '⫸⫸⫸⫸', '⫸⫸⫸⫸⫸', '⫸⫸⫸⫸⫸⫸',
 	'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
 	'code', 'fade',
@@ -75,12 +75,20 @@ function NodeProcessor() {
 				new vscode.Position(s.line - 1, s.column - 1),
 				new vscode.Position(e.line - 1, e.column - 1)
 			));
-		} else if (type === "blockquote") {
+		} else if (type === "blockquote" && s.column === 1) {
 			for (let line = s.line - 1; line < e.line; ++line) {
-				ranges['█'].push(new vscode.Range(
-					new vscode.Position(line, s.column - 1),
-					new vscode.Position(line, s.column)
-				));
+				let text = lines[line];
+				let sub_idx = text.search(/[^>\s]/);
+				if (sub_idx !== -1) {
+					text = text.substring(0, sub_idx);
+				}
+				let last = text.lastIndexOf(">");
+				for (let column = s.column - 1; column <= last; ++column) {
+					ranges['█'].push(new vscode.Range(
+						new vscode.Position(line, column),
+						new vscode.Position(line, column + 1)
+					));
+				}
 			}
 		} else if (type === "code") {
 			ranges['code'].push(new vscode.Range(
@@ -157,8 +165,17 @@ export function activate(context: vscode.ExtensionContext) {
 			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
 			after: {
 				contentText: '█',
-				textDecoration: `none; font-size: ${lineHeight}em;`,
-				color: 'var(--vscode-editor-foreground)'
+				textDecoration: `none; font-size: ${lineHeight}em; letter-spacing: -0.2em`,
+				color: 'color-mix(in srgb, var(--vscode-editor-background) 70%, var(--vscode-editor-foreground) 30%);',
+			}
+		}),
+		'▒': vscode.window.createTextEditorDecorationType({
+			textDecoration: 'none; font-size: 0.001em',
+			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+			after: {
+				contentText: '▒',
+				textDecoration: `none; font-size: ${lineHeight}em`,
+				color: 'color-mix(in srgb, var(--vscode-editor-background) 70%, var(--vscode-editor-foreground) 30%);',
 			}
 		}),
 		'code': vscode.window.createTextEditorDecorationType({
