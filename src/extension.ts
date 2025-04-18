@@ -1,6 +1,11 @@
 import * as vscode from 'vscode';
-const mdast = import('mdast-util-from-markdown');
 import emoji from './emoji';
+import { writeFileSync } from 'node:fs';
+
+// import { fromMarkdown } from 'mdast-util-from-markdown'
+const mdast_util_from_markdown = import('mdast-util-from-markdown');
+const mdast_util_gfm = import('mdast-util-gfm');
+const micromark_extension_gfm = import('micromark-extension-gfm');
 
 const aliases = emoji.flatMap(e => e.aliases).map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 const regex = new RegExp(':(' + aliases.join('|') + '):', 'g');
@@ -231,10 +236,17 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 	async function decorateEditor(editor: vscode.TextEditor) {
 		if (editor.document.languageId === 'markdown') {
+			const { fromMarkdown } = await mdast_util_from_markdown;
+			const { gfmFromMarkdown, gfmToMarkdown } = await mdast_util_gfm;
+			const { gfm } = await micromark_extension_gfm;
 			let selection = editor.selection;
 			let text = editor.document.getText();
-			let { fromMarkdown } = await mdast;
-			const tree = fromMarkdown(text);
+
+			const tree = fromMarkdown(text, {
+				extensions: [gfm()],
+				mdastExtensions: [gfmFromMarkdown()]
+			});
+
 			const processor = NodeProcessor();
 			processor.process(tree, text.split('\n'));
 			const ranges = processor.getRanges();
