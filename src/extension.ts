@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import emoji from './emoji';
+import { MdastNode, Root, Heading, Text, ThematicBreak, Blockquote, Code, Link, Strong, Emphasis, Delete, FootnoteDefinition, FootnoteReference, Table, TableCell, Image, List, ListItem } from './types';
 
 // Dynamic imports for Markdown utilities
 let fromMarkdown: any;
@@ -33,7 +34,7 @@ emoji.forEach(e => {
 	});
 });
 
-function textReplacementDecoration(text: string, textDecoration = 'none') {
+function textReplacementDecoration(text: string, textDecoration = 'none'): vscode.TextEditorDecorationType {
 	return vscode.window.createTextEditorDecorationType({
 		textDecoration: 'none; font-size: 0.001em',
 		rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
@@ -41,14 +42,14 @@ function textReplacementDecoration(text: string, textDecoration = 'none') {
 	});
 }
 
-function fontSizeDecoration(fontSize: string) {
+function fontSizeDecoration(fontSize: string): vscode.TextEditorDecorationType {
 	return vscode.window.createTextEditorDecorationType({
 		textDecoration: `none; font-size: ${fontSize}`,
 		rangeBehavior: vscode.DecorationRangeBehavior.OpenOpen,
 	});
 }
 
-function fullHeightDecoration(text: string, lineHeight: number, { compact = false, percentage = 30 } = {}) {
+function fullHeightDecoration(text: string, lineHeight: number, { compact = false, percentage = 30 } = {}): vscode.TextEditorDecorationType {
 	return vscode.window.createTextEditorDecorationType({
 		textDecoration: 'none; font-size: 0.001em',
 		rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
@@ -68,93 +69,94 @@ class MarkdownDecorator {
 		Object.values(lookup).forEach(emoji => this.ranges[emoji] = []);
 	}
 
-	process(node: any, lines: string[]) {
+	process(node: MdastNode, lines: string[]): void {
 		switch (node.type) {
 			case 'list':
-				this.processList(node, lines);
+				this.processList(node as List, lines);
 				break;
 			case 'listItem':
-				this.processListItem(node, lines);
+				this.processListItem(node as ListItem, lines);
 				break;
 			case 'heading':
-				this.processHeading(node, lines);
+				this.processHeading(node as Heading, lines);
 				break;
 			case 'thematicBreak':
-				this.processThematicBreak(node, lines);
+				this.processThematicBreak(node as ThematicBreak, lines);
 				break;
 			case 'blockquote':
-				this.processBlockquote(node, lines);
+				this.processBlockquote(node as Blockquote, lines);
 				break;
 			case 'code':
-				this.processCode(node, lines);
+				this.processCode(node as Code, lines);
 				break;
 			case 'link':
-				this.processLink(node, lines);
+				this.processLink(node as Link, lines);
 				break;
 			case 'text':
-				this.processText(node, lines);
+				this.processText(node as Text, lines);
 				break;
 			case 'strong':
 			case 'delete':
-				this.hideMarkup(node, 2, 2);
+				this.hideMarkup(node as Strong | Delete, 2, 2);
 				break;
 			case 'emphasis':
-				this.hideMarkup(node, 1, 1);
+				this.hideMarkup(node as Emphasis, 1, 1);
 				break;
 			case 'footnoteDefinition':
-				this.processFootnoteDefinition(node, lines);
+				this.processFootnoteDefinition(node as FootnoteDefinition, lines);
 				break;
 			case 'footnoteReference':
-				this.processFootnoteReference(node, lines);
+				this.processFootnoteReference(node as FootnoteReference, lines);
 				break;
 			case 'table':
-				this.processTable(node, lines);
+				this.processTable(node as Table, lines);
 				break;
 			case 'tableCell':
-				this.processTableCell(node, lines);
+				this.processTableCell(node as TableCell, lines);
 				break;
 			case 'image':
-				this.processImage(node, lines);
+				this.processImage(node as Image, lines);
 				break;
 			default:
 				break;
 		}
 		if (node.children) {
-			node.children.forEach((child: any) => this.process(child, lines));
+			node.children.forEach((child: MdastNode) => this.process(child, lines));
 		}
 	}
 
-	private processList(node: any, lines: string[]) {
-		node.children.forEach((child: any) => {
+	private processList(node: List, lines: string[]): void {
+		node.children.forEach((child: ListItem) => {
 			child.ordered = node.ordered;
 			child.depth = (node.depth || 0) + 1;
 		});
 	}
 
-	private processListItem(node: any, lines: string[]) {
-		let { position: { start: s }, depth } = node;
+	private processListItem(node: ListItem, lines: string[]): void {
+		const { start: s } = node.position;
+		const depth = node.depth ?? 0;
 		if (lines[s.line - 1].length > depth * 2 && !node.ordered) {
-			let char = ['●', '○', '◆', '◇'][(depth - 1) % 4];
+			const char = ['●', '○', '◆', '◇'][depth % 4];
 			this.ranges[char].push(new vscode.Range(
 				new vscode.Position(s.line - 1, s.column - 1),
 				new vscode.Position(s.line - 1, s.column)
 			));
 		}
-		node.children.forEach((child: any) => {
+		node.children.forEach((child: MdastNode) => {
 			if (child.type === "list") {
 				child.depth = node.depth;
 			}
 		});
 	}
 
-	private processHeading(node: any, lines: string[]) {
-		let { position: { start: s, end: e }, depth } = node;
-		if (depth >= 1 && depth <= 6) {
-			this.ranges['h' + depth].push(new vscode.Range(
+	private processHeading(node: Heading, lines: string[]): void {
+		const { start: s, end: e } = node.position;
+		if (node.depth >= 1 && node.depth <= 6) {
+			this.ranges['h' + node.depth].push(new vscode.Range(
 				new vscode.Position(s.line - 1, s.column - 1),
 				new vscode.Position(e.line - 1, e.column - 1)
 			));
-			for (let i = 0; i < depth; ++i) {
+			for (let i = 0; i < node.depth; ++i) {
 				this.ranges['⫸'].push(new vscode.Range(
 					new vscode.Position(s.line - 1, i),
 					new vscode.Position(s.line - 1, i + 1)
@@ -163,24 +165,24 @@ class MarkdownDecorator {
 		}
 	}
 
-	private processThematicBreak(node: any, lines: string[]) {
-		let { position: { start: s, end: e } } = node;
+	private processThematicBreak(node: ThematicBreak, lines: string[]): void {
+		const { start: s, end: e } = node.position;
 		this.ranges['_'].push(new vscode.Range(
 			new vscode.Position(s.line - 1, s.column - 1),
 			new vscode.Position(e.line - 1, e.column - 1)
 		));
 	}
 
-	private processBlockquote(node: any, lines: string[]) {
-		let { position: { start: s, end: e } } = node;
+	private processBlockquote(node: Blockquote, lines: string[]): void {
+		const { start: s, end: e } = node.position;
 		if (s.column === 1) {
 			for (let line = s.line - 1; line < e.line; ++line) {
 				let text = lines[line];
-				let sub_idx = text.search(/[^>\s]/);
+				const sub_idx = text.search(/[^>\s]/);
 				if (sub_idx !== -1) {
 					text = text.substring(0, sub_idx);
 				}
-				let last = text.lastIndexOf(">");
+				const last = text.lastIndexOf(">");
 				for (let column = s.column - 1; column <= last; ++column) {
 					this.ranges['█'].push(new vscode.Range(
 						new vscode.Position(line, column),
@@ -191,8 +193,8 @@ class MarkdownDecorator {
 		}
 	}
 
-	private processCode(node: any, lines: string[]) {
-		let { position: { start: s, end: e } } = node;
+	private processCode(node: Code, lines: string[]): void {
+		const { start: s, end: e } = node.position;
 		this.ranges['code'].push(new vscode.Range(
 			new vscode.Position(s.line - 1, s.column - 1),
 			new vscode.Position(e.line - 1, e.column - 1)
@@ -211,10 +213,10 @@ class MarkdownDecorator {
 		}
 	}
 
-	private processLink(node: any, lines: string[]) {
+	private processLink(node: Link, lines: string[]): void {
 		if (node.children.length === 1 && node.children[0].type === "text") {
-			let { start: ps, end: pe } = node.children[0].position;
-			let { position: { start: s, end: e } } = node;
+			const { start: ps, end: pe } = node.children[0].position;
+			const { start: s, end: e } = node.position;
 			this.ranges[''].push(new vscode.Range(
 				new vscode.Position(s.line - 1, s.column - 1),
 				new vscode.Position(ps.line - 1, ps.column - 1)
@@ -226,23 +228,26 @@ class MarkdownDecorator {
 		}
 	}
 
-	private processText(node: any, lines: string[]) {
-		let { position: { start: s }, value } = node;
-		value.split('\n').forEach((_: any, idx: number) => {
-			let line = lines[s.line - 1 + idx];
-			let result = Array.from(line.matchAll(regex)) as any;
-			for (let m of result) {
-				const range = new vscode.Range(
-					new vscode.Position(s.line - 1 + idx, m.index),
-					new vscode.Position(s.line - 1 + idx, m.index + m[0].length)
-				);
-				this.ranges[lookup[m[1]]].push(range);
-			}
-		});
+	private processText(node: Text, lines: string[]): void {
+		const { start: s } = node.position;
+		const { value } = node;
+		if (value) {
+			value.split('\n').forEach((_: any, idx: number) => {
+				const line = lines[s.line - 1 + idx];
+				const result = Array.from(line.matchAll(regex)) as any;
+				for (const m of result) {
+					const range = new vscode.Range(
+						new vscode.Position(s.line - 1 + idx, m.index),
+						new vscode.Position(s.line - 1 + idx, m.index + m[0].length)
+					);
+					this.ranges[lookup[m[1]]].push(range);
+				}
+			});
+		}
 	}
 
-	private hideMarkup(node: any, startOffset: number, endOffset: number) {
-		let { position: { start: s, end: e } } = node;
+	private hideMarkup(node: Strong | Emphasis | Delete, startOffset: number, endOffset: number): void {
+		const { start: s, end: e } = node.position;
 		this.ranges[''].push(new vscode.Range(
 			new vscode.Position(s.line - 1, s.column - 1),
 			new vscode.Position(s.line - 1, s.column - 1 + startOffset)
@@ -253,11 +258,11 @@ class MarkdownDecorator {
 		));
 	}
 
-	private processFootnoteDefinition(node: any, lines: string[]) {
-		let { position: { start: s } } = node;
-		let line = lines[s.line - 1];
-		let start = line.indexOf("[^");
-		let end = line.indexOf("]");
+	private processFootnoteDefinition(node: FootnoteDefinition, lines: string[]): void {
+		const { start: s } = node.position;
+		const line = lines[s.line - 1];
+		const start = line.indexOf("[^");
+		const end = line.indexOf("]");
 		this.ranges[''].push(new vscode.Range(
 			new vscode.Position(s.line - 1, start),
 			new vscode.Position(s.line - 1, start + 2)
@@ -268,8 +273,8 @@ class MarkdownDecorator {
 		));
 	}
 
-	private processFootnoteReference(node: any, lines: string[]) {
-		let { position: { start: s, end: e } } = node;
+	private processFootnoteReference(node: FootnoteReference, lines: string[]): void {
+		const { start: s, end: e } = node.position;
 		this.ranges['↪'].push(new vscode.Range(
 			new vscode.Position(s.line - 1, s.column - 1),
 			new vscode.Position(s.line - 1, s.column + 1)
@@ -280,21 +285,21 @@ class MarkdownDecorator {
 		));
 	}
 
-	private processTable(node: any, lines: string[]) {
-		node.children.map((tableRow: any) => {
-
+	private processTable(node: Table, lines: string[]): void {
+		node.children.map((tableRow: MdastNode) => {
+			// No additional processing needed for table rows here
 		});
-		let { position: { start: s, end: e } } = node;
+		const { start: s, end: e } = node.position;
 		for (let i = s.line - 1; i < e.line; ++i) {
 			this.ranges['│'].push(new vscode.Range(
 				new vscode.Position(i, s.column - 1),
 				new vscode.Position(i, s.column)
 			));
 		}
-		let line = lines[s.line].trimEnd();
+		const line = lines[s.line].trimEnd();
 		for (let column = s.column; column < line.length; ++column) {
 			if (line[column] === '|') {
-				let char = column === (line.length - 1) || column === s.column ? '│' : '┼';
+				const char = column === (line.length - 1) || column === s.column ? '│' : '┼';
 				this.ranges[char].push(new vscode.Range(
 					new vscode.Position(s.line, column),
 					new vscode.Position(s.line, column + 1)
@@ -314,18 +319,19 @@ class MarkdownDecorator {
 		}
 	}
 
-	private processTableCell(node: any, lines: string[]) {
-		let { position: { start: s, end: e } } = node;
-		let line = lines[s.line - 1];
-		let endCol = Math.min(e.column, line.trimEnd().length);
+	private processTableCell(node: TableCell, lines: string[]): void {
+		const { start: s, end: e } = node.position;
+		const line = lines[s.line - 1];
+		const endCol = Math.min(e.column, line.trimEnd().length);
 		this.ranges['│'].push(new vscode.Range(
 			new vscode.Position(s.line - 1, endCol - 1),
 			new vscode.Position(s.line - 1, endCol)
 		));
 	}
 
-	private processImage(node: any, lines: string[]) {
-		let { position: { start: s, end: e }, alt } = node;
+	private processImage(node: Image, lines: string[]): void {
+		const { start: s, end: e } = node.position;
+		const { alt = '' } = node;
 		this.ranges['◧'].push(new vscode.Range(
 			new vscode.Position(s.line - 1, s.column - 1),
 			new vscode.Position(s.line - 1, s.column + 1)
@@ -336,7 +342,7 @@ class MarkdownDecorator {
 		));
 	}
 
-	getRanges() {
+	getRanges(): { [key: string]: vscode.Range[] } {
 		return this.ranges;
 	}
 }
@@ -394,7 +400,7 @@ function createDecorationTypes(lineHeight: number): { [key: string]: vscode.Text
 	return decorationTypes;
 }
 
-export async function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext): Promise<void> {
 	await initializeMarkdownUtils();
 	const editorConfig = vscode.workspace.getConfiguration('editor');
 	const lineHeight = editorConfig.get<number>('lineHeight') || 1.5;
@@ -403,7 +409,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	let cacheStore: { [uri: string]: { version: number, ranges: { [key: string]: vscode.Range[] } } } = {};
 
-	function decorateEditor(editor: vscode.TextEditor) {
+	function decorateEditor(editor: vscode.TextEditor): void {
 		if (editor.document.languageId === 'markdown') {
 			const uri = editor.document.uri.toString();
 			let cache = cacheStore[uri];
@@ -412,7 +418,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				ranges = cache.ranges;
 			} else {
 				const text = editor.document.getText();
-				const tree = fromMarkdown(text, {
+				const tree: Root = fromMarkdown(text, {
 					extensions: [gfm()],
 					mdastExtensions: [gfmFromMarkdown()]
 				});
@@ -422,7 +428,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				cacheStore[uri] = { version: editor.document.version, ranges };
 			}
 
-			let selection = editor.selection;
+			const selection = editor.selection;
 			for (const s of Object.keys(ranges)) {
 				const decorationType = decorationTypes[s];
 				let targetRanges = ranges[s];
@@ -463,4 +469,4 @@ export async function activate(context: vscode.ExtensionContext) {
 	);
 }
 
-export function deactivate() { }
+export function deactivate(): void { }
