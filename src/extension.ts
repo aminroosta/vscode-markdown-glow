@@ -141,7 +141,7 @@ function NodeProcessor() {
 					}
 				}
 			});
-		} else if (type === "strong") {
+		} else if (type === "strong" || type === "delete") {
 			ranges[''].push(new vscode.Range(
 				new vscode.Position(s.line - 1, s.column - 1),
 				new vscode.Position(s.line - 1, s.column + 1)
