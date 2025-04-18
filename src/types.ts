@@ -137,6 +137,7 @@ export interface FootnoteDefinition extends MdastNode {
 
 export interface Table extends MdastNode {
     type: 'table';
+    align: string[],
     children: TableRow[];
 }
 

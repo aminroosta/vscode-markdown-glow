@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import emoji from './emoji';
-import { MdastNode, Root, Heading, Text, ThematicBreak, Blockquote, Code, Link, Strong, Emphasis, Delete, FootnoteDefinition, FootnoteReference, Table, TableCell, Image, List, ListItem } from './types';
+import { MdastNode, Root, Heading, Text, ThematicBreak, Blockquote, Code, Link, Strong, Emphasis, Delete, FootnoteDefinition, FootnoteReference, Table, TableCell, Image, List, ListItem, TableRow } from './types';
 
 // Dynamic imports for Markdown utilities
 let fromMarkdown: any;
@@ -49,7 +49,7 @@ function fontSizeDecoration(fontSize: string): vscode.TextEditorDecorationType {
 	});
 }
 
-function fullHeightDecoration(text: string, lineHeight: number, { compact = false, percentage = 30 } = {}): vscode.TextEditorDecorationType {
+function fullHeightDecoration(text: string, lineHeight: number, { compact = false, percentage = 30, extra = '' } = {}): vscode.TextEditorDecorationType {
 	return vscode.window.createTextEditorDecorationType({
 		textDecoration: 'none; font-size: 0.001em',
 		rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
@@ -64,9 +64,10 @@ function fullHeightDecoration(text: string, lineHeight: number, { compact = fals
 class MarkdownDecorator {
 	private ranges: { [key: string]: vscode.Range[] } = {};
 
-	constructor() {
-		symbols.forEach(s => this.ranges[s] = []);
-		Object.values(lookup).forEach(emoji => this.ranges[emoji] = []);
+	constructor(decorationTypes: Record<string, vscode.TextEditorDecorationType>) {
+		Object.keys(decorationTypes).forEach(s => this.ranges[s] = []);
+		// symbols.forEach(s => this.ranges[s] = []);
+		// Object.values(lookup).forEach(emoji => this.ranges[emoji] = []);
 	}
 
 	process(node: MdastNode, lines: string[]): void {
@@ -111,9 +112,9 @@ class MarkdownDecorator {
 			case 'table':
 				this.processTable(node as Table, lines);
 				break;
-			case 'tableCell':
-				this.processTableCell(node as TableCell, lines);
-				break;
+			// case 'tableCell':
+			// 	this.processTableCell(node as TableCell, lines);
+			// 	break;
 			case 'image':
 				this.processImage(node as Image, lines);
 				break;
@@ -285,38 +286,68 @@ class MarkdownDecorator {
 		));
 	}
 
-	private processTable(node: Table, lines: string[]): void {
-		node.children.map((tableRow: MdastNode) => {
-			// No additional processing needed for table rows here
-		});
-		const { start: s, end: e } = node.position;
-		for (let i = s.line - 1; i < e.line; ++i) {
-			this.ranges['│'].push(new vscode.Range(
-				new vscode.Position(i, s.column - 1),
-				new vscode.Position(i, s.column)
-			));
-		}
-		const line = lines[s.line].trimEnd();
-		for (let column = s.column; column < line.length; ++column) {
-			if (line[column] === '|') {
-				const char = column === (line.length - 1) || column === s.column ? '│' : '┼';
-				this.ranges[char].push(new vscode.Range(
-					new vscode.Position(s.line, column),
-					new vscode.Position(s.line, column + 1)
-				));
-			} else {
-				this.ranges['─'].push(new vscode.Range(
-					new vscode.Position(s.line, column),
-					new vscode.Position(s.line, column + 1)
+	private processTableRow(node: TableRow, lines: string[], columnsInfo: { align: string | null, maxWidth: number }[]) {
+		const { start, end } = node.position;
+		let column = start.column - 1;
+		this.ranges['│'].push(new vscode.Range(
+			new vscode.Position(start.line - 1, column),
+			new vscode.Position(start.line - 1, column + 1)
+		));
+		column += 1;
+
+		for (let i = 0; i < node.children.length; ++i) {
+			let cell = node.children[i];
+			let info = columnsInfo[i];
+			const { start: s, end: e } = cell.position;
+			let width = e.column - s.column - 1;
+			if (width < info.maxWidth) {
+				let diff = info.maxWidth - width;
+				let key = `pad_${diff}`;
+				this.ranges[key].push(new vscode.Range(
+					new vscode.Position(s.line - 1, e.column - 1),
+					new vscode.Position(s.line - 1, e.column - 1)
 				));
 			}
-		}
-		if (e.column > line.length) {
-			this.ranges[''].push(new vscode.Range(
-				new vscode.Position(s.line, line.length),
-				new vscode.Position(s.line, e.column)
+			let line = lines[start.line - 1];
+			column = Math.min(line.length - 1, e.column - 1);
+			this.ranges['│'].push(new vscode.Range(
+				new vscode.Position(start.line - 1, column),
+				new vscode.Position(start.line - 1, column + 1)
 			));
 		}
+	}
+
+	private processTable(node: Table, lines: string[]): void {
+		const columnsInfo = this.getTableColumnsInfo(node);
+		node.children.forEach((tableRow) => {
+			this.processTableRow(tableRow, lines, columnsInfo);
+		});
+
+		const { start: s, end: _e } = node.position;
+		let column = s.column - 1;
+		const parts = lines[s.line].trim().split('|').filter(p => p.length > 0);
+		for (let idx = 0; idx < parts.length; ++idx) {
+			let part = parts[idx];
+			let info = columnsInfo[idx];
+			const char = column === (s.column - 1) ? '│' : '┼';
+			this.ranges[char].push(new vscode.Range(
+				new vscode.Position(s.line, column),
+				new vscode.Position(s.line, column + 1)
+			));
+			column = column + 1;
+			let offset = idx === (parts.length - 1) ? -1 : 0;
+			let key = `div_${info.maxWidth + offset}`;
+			this.ranges[key].push(new vscode.Range(
+				new vscode.Position(s.line, column),
+				new vscode.Position(s.line, column + part.length)
+			));
+			column = column + part.length;
+		}
+		this.ranges['│'].push(new vscode.Range(
+			new vscode.Position(s.line, column),
+			new vscode.Position(s.line, column + 1)
+		));
+		column += 1;
 	}
 
 	private processTableCell(node: TableCell, lines: string[]): void {
@@ -327,6 +358,29 @@ class MarkdownDecorator {
 			new vscode.Position(s.line - 1, endCol - 1),
 			new vscode.Position(s.line - 1, endCol)
 		));
+	}
+
+	private getTableColumnsInfo(node: Table): { align: string | null, maxWidth: number }[] {
+		const columnCount = node.align.length || 0;
+		const columnsInfo = Array.from({ length: columnCount }, (_, i) => ({
+			align: node.align[i] || null,
+			maxWidth: 0
+		}));
+
+		// Calculate maximum width for each column
+		node.children.forEach(row => {
+			row.children.forEach((cell, i) => {
+				if (i < columnCount) {
+					const { start: s, end: e } = cell.position;
+					const width = e.column - s.column - 1;
+					if (width > columnsInfo[i].maxWidth) {
+						columnsInfo[i].maxWidth = width;
+					}
+				}
+			});
+		});
+
+		return columnsInfo;
 	}
 
 	private processImage(node: Image, lines: string[]): void {
@@ -372,6 +426,7 @@ function createDecorationTypes(lineHeight: number): { [key: string]: vscode.Text
 		'┬': textReplacementDecoration('┬'),
 		'┼': fullHeightDecoration('┼', lineHeight, { compact: true }),
 		'─': fullHeightDecoration('─', lineHeight, { compact: true }),
+		// '─': textReplacementDecoration('─'),
 		'├': textReplacementDecoration('├'),
 		'┌': textReplacementDecoration('┌'),
 		'●': textReplacementDecoration('●'),
@@ -394,6 +449,22 @@ function createDecorationTypes(lineHeight: number): { [key: string]: vscode.Text
 		'h5': fontSizeDecoration('1.02em'),
 		'h6': fontSizeDecoration('1.01em'),
 	};
+
+	for (let diff = 1; diff < 500; ++diff) {
+		let key = `pad_${diff}`;
+		decorationTypes[key] = vscode.window.createTextEditorDecorationType({
+			textDecoration: 'none; font-size: 0.001em',
+			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+			after: {
+				contentText: '▒'.repeat(diff),
+				textDecoration: `none; font-size: ${lineHeight}em; letter-spacing: -0.2em`,
+				color: 'transparent'
+			}
+		});
+		key = `div_${diff}`;
+		decorationTypes[key] = fullHeightDecoration('─'.repeat(diff), lineHeight, { compact: true });
+	}
+
 	Object.values(lookup).forEach(emoji => {
 		decorationTypes[emoji] = textReplacementDecoration(emoji);
 	});
@@ -422,7 +493,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 					extensions: [gfm()],
 					mdastExtensions: [gfmFromMarkdown()]
 				});
-				const processor = new MarkdownDecorator();
+				const processor = new MarkdownDecorator(decorationTypes);
 				processor.process(tree, text.split('\n'));
 				ranges = processor.getRanges();
 				cacheStore[uri] = { version: editor.document.version, ranges };
