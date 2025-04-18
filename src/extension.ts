@@ -1,5 +1,9 @@
 import * as vscode from 'vscode';
 const mdast = import('mdast-util-from-markdown');
+import emoji from './emoji';
+
+const aliases = emoji.flatMap(e => e.aliases).map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+const regex = new RegExp(':(' + aliases.join('|') + '):', 'g');
 
 
 function textReplacementDecoration(text: string, textDecoration = 'none') {
@@ -21,7 +25,13 @@ const symbols = [
 	'⫸', '⫸⫸', '⫸⫸⫸', '⫸⫸⫸⫸', '⫸⫸⫸⫸⫸', '⫸⫸⫸⫸⫸⫸',
 	'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
 	'code', 'fade',
-] as const;
+];
+const lookup = {} as any;
+emoji.forEach(e => {
+	e.aliases.forEach(a => {
+		lookup[a] = e.emoji;
+	});
+});
 
 
 function NodeProcessor() {
@@ -29,7 +39,7 @@ function NodeProcessor() {
 		symbols.map(s => [s, [] as vscode.Range[]])
 	);
 	function process(node: any, lines: string[]) {
-		let { position: { start: s, end: e }, depth, type } = node;
+		let { position: { start: s, end: e }, depth, type, value } = node;
 		if (type === "list") {
 			node.children.forEach((child: any) => {
 				child.ordered = node.ordered;
@@ -102,6 +112,21 @@ function NodeProcessor() {
 					new vscode.Position(e.line - 1, e.column - 1)
 				));
 			}
+		} else if (type === "text") {
+			let result = Array.from(value.matchAll(regex)) as any;
+			if (result.length) {
+				for (let m of result) {
+					const range = new vscode.Range(
+						new vscode.Position(s.line - 1, s.column - 1 + m.index),
+						new vscode.Position(s.line - 1, s.column - 1 + m.index + m[0].length)
+					);
+					if (!ranges[lookup[m[1]]]) {
+						ranges[lookup[m[1]]] = [range];
+					} else {
+						ranges[lookup[m[1]]].push(range);
+					}
+				}
+			}
 		}
 
 		if (node.children) {
@@ -155,10 +180,12 @@ export function activate(context: vscode.ExtensionContext) {
 		'h5': fontSizeDecoration('1.02em'),
 		'h6': fontSizeDecoration('1.01em'),
 	};
+	Object.values(lookup).forEach((emoji: any) => {
+		(decorationTypes as any)[emoji] = textReplacementDecoration(emoji);
+	});
 	Object.values(decorationTypes).forEach(
 		decorationType => context.subscriptions.push(decorationType)
 	);
-
 	async function decorateEditor(editor: vscode.TextEditor) {
 		if (editor.document.languageId === 'markdown') {
 			let selection = editor.selection;
@@ -168,8 +195,8 @@ export function activate(context: vscode.ExtensionContext) {
 			const processor = NodeProcessor();
 			processor.process(tree, text.split('\n'));
 			const ranges = processor.getRanges();
-			for (const s of symbols) {
-				const decorationType = decorationTypes[s];
+			for (const s of Object.keys(ranges)) {
+				const decorationType = (decorationTypes as any)[s];
 				let targetRanges = ranges[s];
 				if (s !== 'code') {
 					targetRanges = ranges[s].filter(r => r.start.line !== selection.start.line);
@@ -177,7 +204,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 				editor.setDecorations(decorationType, targetRanges);
 			}
-
 		}
 	}
 
