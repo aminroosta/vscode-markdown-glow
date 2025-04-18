@@ -136,6 +136,25 @@ function NodeProcessor() {
 					}
 				}
 			});
+		} else if (type === "strong") {
+			ranges[''].push(new vscode.Range(
+				new vscode.Position(s.line - 1, s.column - 1),
+				new vscode.Position(s.line - 1, s.column + 1)
+			));
+			ranges[''].push(new vscode.Range(
+				new vscode.Position(e.line - 1, e.column - 3),
+				new vscode.Position(e.line - 1, e.column - 1)
+			));
+		} else if (type === "emphasis") {
+			ranges[''].push(new vscode.Range(
+				new vscode.Position(s.line - 1, s.column - 1),
+				new vscode.Position(s.line - 1, s.column)
+			));
+			ranges[''].push(new vscode.Range(
+				new vscode.Position(e.line - 1, e.column - 2),
+				new vscode.Position(e.line - 1, e.column - 1)
+			));
+
 		}
 
 		if (node.children) {
