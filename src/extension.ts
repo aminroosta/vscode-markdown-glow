@@ -19,7 +19,8 @@ function fontSizeDecoration(fontSize: string) {
 const symbols = [
 	'', '_', '●', '○', '◆', '◇', '█',
 	'⫸', '⫸⫸', '⫸⫸⫸', '⫸⫸⫸⫸', '⫸⫸⫸⫸⫸', '⫸⫸⫸⫸⫸⫸',
-	'h1', 'h2', 'h3', 'h4', 'h5', 'h6'
+	'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+	'code', 'fade',
 ] as const;
 
 
@@ -29,15 +30,11 @@ function NodeProcessor() {
 	);
 	function process(node: any, lines: string[]) {
 		let { position: { start: s, end: e }, depth, type } = node;
-		if (["root"].includes(type)) {
-			node.children.forEach((n: any) => process(n, lines));
-		}
-		else if (type === "list") {
+		if (type === "list") {
 			node.children.forEach((child: any) => {
 				child.ordered = node.ordered;
 				child.depth = (node.depth || 0) + 1;
 			});
-			node.children.forEach((n: any) => process(n, lines));
 		} else if (type === "listItem") {
 			if (lines[s.line - 1].length > node.depth * 2 && !node.ordered) {
 				let char = ['●', '○', '◆', '◇'][(node.depth - 1) % 4];
@@ -51,9 +48,8 @@ function NodeProcessor() {
 					child.depth = node.depth;
 				}
 			});
-			node.children.forEach((n: any) => process(n, lines));
 		} else if (type === "heading" && depth >= 1 && depth <= 6) {
-			if (lines[s.line - 1].length <= depth + 1) { return; }
+			// if (lines[s.line - 1].length <= depth + 1) { return; }
 			ranges['h' + depth].push(new vscode.Range(
 				new vscode.Position(s.line - 1, s.column - 1),
 				new vscode.Position(e.line - 1, e.column - 1)
@@ -76,6 +72,39 @@ function NodeProcessor() {
 					new vscode.Position(line, s.column)
 				));
 			}
+		} else if (type === "code") {
+			ranges['code'].push(new vscode.Range(
+				new vscode.Position(s.line - 1, s.column - 1),
+				new vscode.Position(e.line - 1, e.column - 1)
+			));
+			if (lines[s.line - 1].startsWith('```')) {
+				ranges['fade'].push(new vscode.Range(
+					new vscode.Position(s.line - 1, 0),
+					new vscode.Position(s.line - 1, 3)
+				));
+			}
+			if (lines[e.line - 1].startsWith('```')) {
+				ranges['fade'].push(new vscode.Range(
+					new vscode.Position(e.line - 1, 0),
+					new vscode.Position(e.line - 1, 3)
+				));
+			}
+		} else if (type === "link") {
+			if (node.children.length === 1 && node.children[0].type === "text") {
+				let { start: ps, end: pe } = node.children[0].position;
+				ranges[''].push(new vscode.Range(
+					new vscode.Position(s.line - 1, s.column - 1),
+					new vscode.Position(s.line - 1, ps.column - 1)
+				));
+
+				ranges[''].push(new vscode.Range(
+					new vscode.Position(e.line - 1, pe.column - 1),
+					new vscode.Position(e.line - 1, e.column - 1)
+				));
+			}
+		}
+
+		if (node.children) {
 			node.children.forEach((n: any) => process(n, lines));
 		}
 	};
@@ -100,6 +129,15 @@ export function activate(context: vscode.ExtensionContext) {
 				color: 'var(--vscode-editor-foreground)'
 			}
 		}),
+		'code': vscode.window.createTextEditorDecorationType({
+			backgroundColor: 'color-mix(in srgb, var(--vscode-editor-background) 90%, var(--vscode-editor-foreground) 5%);',
+			isWholeLine: true,
+			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+		}),
+		'fade': vscode.window.createTextEditorDecorationType({
+			textDecoration: 'none; opacity: 0',
+			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+		}),
 		'●': textReplacementDecoration('●'),
 		'○': textReplacementDecoration('○'),
 		'◆': textReplacementDecoration('◆'),
@@ -123,6 +161,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	async function decorateEditor(editor: vscode.TextEditor) {
 		if (editor.document.languageId === 'markdown') {
+			let selection = editor.selection;
 			let text = editor.document.getText();
 			let { fromMarkdown } = await mdast;
 			const tree = fromMarkdown(text);
@@ -131,7 +170,12 @@ export function activate(context: vscode.ExtensionContext) {
 			const ranges = processor.getRanges();
 			for (const s of symbols) {
 				const decorationType = decorationTypes[s];
-				editor.setDecorations(decorationType, ranges[s]);
+				let targetRanges = ranges[s];
+				if (s !== 'code') {
+					targetRanges = ranges[s].filter(r => r.start.line !== selection.start.line);
+				}
+
+				editor.setDecorations(decorationType, targetRanges);
 			}
 
 		}
@@ -158,6 +202,17 @@ export function activate(context: vscode.ExtensionContext) {
 			}
 		})
 	);
+	// Listen to cursor movements
+	context.subscriptions.push(
+		vscode.window.onDidChangeTextEditorSelection(
+			(event: vscode.TextEditorSelectionChangeEvent) => {
+				if (event.textEditor.document.languageId === 'markdown') {
+					decorateEditor(event.textEditor);
+				}
+			})
+	);
+
+
 }
 
 export function deactivate() { }
