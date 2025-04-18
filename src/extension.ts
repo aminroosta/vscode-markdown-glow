@@ -113,12 +113,13 @@ function NodeProcessor() {
 				));
 			}
 		} else if (type === "text") {
-			let result = Array.from(value.matchAll(regex)) as any;
-			if (result.length) {
+			value.split('\n').forEach((_line: string, idx: number) => {
+				let line = lines[s.line - 1 + idx];
+				let result = Array.from(line.matchAll(regex)) as any;
 				for (let m of result) {
 					const range = new vscode.Range(
-						new vscode.Position(s.line - 1, s.column - 1 + m.index),
-						new vscode.Position(s.line - 1, s.column - 1 + m.index + m[0].length)
+						new vscode.Position(s.line - 1 + idx, m.index),
+						new vscode.Position(s.line - 1 + idx, m.index + m[0].length)
 					);
 					if (!ranges[lookup[m[1]]]) {
 						ranges[lookup[m[1]]] = [range];
@@ -126,7 +127,7 @@ function NodeProcessor() {
 						ranges[lookup[m[1]]].push(range);
 					}
 				}
-			}
+			});
 		}
 
 		if (node.children) {
@@ -144,7 +145,13 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const decorationTypes = {
 		'': textReplacementDecoration(''),
-		'_': textReplacementDecoration('_'.repeat(80)),
+		// '_': textReplacementDecoration('_'.repeat(80)),
+		'_': vscode.window.createTextEditorDecorationType({
+			textDecoration: 'none; border-bottom: 1px solid var(--vscode-editor-foreground); width: 100vw; display: inline-block; position: relative; top: -50%',
+			color: 'transparent',
+			isWholeLine: true,
+			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+		}),
 		'█': vscode.window.createTextEditorDecorationType({
 			textDecoration: 'none; font-size: 0.001em',
 			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
