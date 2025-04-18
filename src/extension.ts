@@ -26,7 +26,7 @@ function fontSizeDecoration(fontSize: string) {
 }
 
 const symbols = [
-	'', '_', '●', '○', '◆', '◇', '█', '▒',
+	'', ' ', '_', '●', '○', '◆', '◇', '█', '▒', '↪', '↩',
 	'⫸', '⫸⫸', '⫸⫸⫸', '⫸⫸⫸⫸', '⫸⫸⫸⫸⫸', '⫸⫸⫸⫸⫸⫸',
 	'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
 	'code', 'fade',
@@ -160,6 +160,27 @@ function NodeProcessor() {
 				new vscode.Position(e.line - 1, e.column - 1)
 			));
 
+		} else if (type === "footnoteDefinition") {
+			let line = lines[s.line - 1];
+			let start = line.indexOf("[^");
+			let end = line.indexOf("]");
+			ranges[''].push(new vscode.Range(
+				new vscode.Position(s.line - 1, start),
+				new vscode.Position(s.line - 1, start + 2)
+			));
+			ranges['↩'].push(new vscode.Range(
+				new vscode.Position(s.line - 1, end),
+				new vscode.Position(s.line - 1, end + 1)
+			));
+		} else if (type === "footnoteReference") {
+			ranges['↪'].push(new vscode.Range(
+				new vscode.Position(s.line - 1, s.column - 1),
+				new vscode.Position(s.line - 1, s.column + 1)
+			));
+			ranges[''].push(new vscode.Range(
+				new vscode.Position(s.line - 1, e.column - 2),
+				new vscode.Position(s.line - 1, e.column - 1)
+			));
 		}
 
 		if (node.children) {
@@ -177,6 +198,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	const decorationTypes = {
 		'': textReplacementDecoration(''),
+		' ': textReplacementDecoration(' '),
 		// '_': textReplacementDecoration('_'.repeat(80)),
 		'_': vscode.window.createTextEditorDecorationType({
 			textDecoration: 'none; border-bottom: 1px solid var(--vscode-editor-foreground); width: 100vw; display: inline-block; position: relative; top: -50%',
@@ -212,6 +234,8 @@ export function activate(context: vscode.ExtensionContext) {
 			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
 		}),
 		'●': textReplacementDecoration('●'),
+		'↩': textReplacementDecoration('↩', 'none; font-weight: bold'),
+		'↪': textReplacementDecoration(' ↪', 'none; font-weight: bold'),
 		'○': textReplacementDecoration('○'),
 		'◆': textReplacementDecoration('◆'),
 		'◇': textReplacementDecoration('◇'),
