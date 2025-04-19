@@ -57,7 +57,7 @@ Unordered
 + Sub-lists are made by indenting 2 spaces:
   - Marker character change forces new list start:
     * Ac tristique libero volutpat at
-    + Facilisis in pretium nisl aliquet
+      + Facilisis in pretium nisl aliquet
     - Nulla volutpat aliquam velit
 + Very easy!
 
@@ -107,19 +107,20 @@ console.log(foo(5));
 
 ## Tables
 
-| Option | Description |
-| ------ | ----------- |
-| data   | path to data files to supply the data that will be passed into templates. |
-| engine | engine to be used for processing templates. Handlebars is the default. |
-| ext    | extension to be used for dest files. |
-
 Right aligned columns
 
+  | Option | Description| testing |
+  | :------:| :-----------:| :---: |
+  | data  sss **bold**! | path to data files to supply the data that will be passed into templates. | works |
+  | engine | engine to be used for processing templates. Handlebars is the default. | hello |
+  | ext    | extension to be used for dest files.| right |
+
 | Option | Description |
-| ------:| -----------:|
+| ------- |----------- |
 | data   | path to data files to supply the data that will be passed into templates. |
 | engine | engine to be used for processing templates. Handlebars is the default. |
 | ext    | extension to be used for dest files. |
+
 
 
 ## Links

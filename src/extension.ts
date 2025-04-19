@@ -58,8 +58,6 @@ class MarkdownDecorator {
 
 	constructor(decorationTypes: Record<string, vscode.TextEditorDecorationType>) {
 		Object.keys(decorationTypes).forEach(s => this.ranges[s] = []);
-		// symbols.forEach(s => this.ranges[s] = []);
-		// Object.values(lookup).forEach(emoji => this.ranges[emoji] = []);
 	}
 
 	process(node: MdastNode, lines: string[]): void {
@@ -93,6 +91,7 @@ class MarkdownDecorator {
 				this.hideMarkup(node as Strong | Delete, 2, 2);
 				break;
 			case 'emphasis':
+			case 'inlineCode':
 				this.hideMarkup(node as Emphasis, 1, 1);
 				break;
 			case 'footnoteDefinition':
@@ -104,9 +103,6 @@ class MarkdownDecorator {
 			case 'table':
 				this.processTable(node as Table, lines);
 				break;
-			// case 'tableCell':
-			// 	this.processTableCell(node as TableCell, lines);
-			// 	break;
 			case 'image':
 				this.processImage(node as Image, lines);
 				break;
@@ -121,7 +117,7 @@ class MarkdownDecorator {
 	private processList(node: List, lines: string[]): void {
 		node.children.forEach((child: ListItem) => {
 			child.ordered = node.ordered;
-			child.depth = (node.depth || 0) + 1;
+			child.depth = Number.isInteger(node.depth) ? node.depth! + 1 : 0;
 		});
 	}
 
