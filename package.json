@@ -2,6 +2,9 @@
   "name": "markdown-glow",
   "displayName": "Markdown Glow",
   "description": "Renders Markdown text with live styling as you type, providing a seamless real-time preview of headers, bold, italics, and more directly in the editor.",
+  "repository": {
+    "url": "https://github.com/aminroosta/vscode-markdown-glow"
+  },
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.99.0"
