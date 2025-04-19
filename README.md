@@ -4,7 +4,7 @@ Renders Markdown text with live styling as you type, providing a seamless real-t
 
 ## Demo
 
-![Demo](assets/markdown-glow-demo.gif)
+![Demo](assets/demo.png)
 
 * **Release Notes:**
     * 0.0.1
