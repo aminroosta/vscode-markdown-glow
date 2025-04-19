@@ -23476,4 +23476,4 @@ export default [
     , "unicode_version": "11.0"
     , "ios_version": "12.1"
   }
-]
+];
