@@ -101,7 +101,7 @@ class MarkdownDecorator {
 				this.processFootnoteReference(node as FootnoteReference, lines);
 				break;
 			case 'table':
-				this.processTable(node as Table, lines);
+				// this.processTable(node as Table, lines);
 				break;
 			case 'image':
 				this.processImage(node as Image, lines);

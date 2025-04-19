@@ -1,9 +1,6 @@
-# h1 Heading 8-)
+# h1 Heading
 ## h2 Heading
 ### h3 Heading
-
-
-* Horizontal Rules
 
 ___
 ---
@@ -26,30 +23,13 @@ ___
       + Facilisis in pretium nisl aliquet
     - Nulla volutpat aliquam velit
 
-Inline `code`
-
-    // Indented code
-    line 1 of code
-    line 2 of code
-    line 3 of code
-
-
-
-``` js
-var foo = function (bar) {
+``` ts
+var foo = function (bar: number) {
   return bar++;
 };
 
 console.log(foo(5));
 ```
-
-
-| Option | Description | optional |
-| :------:| :-----------:| :---: |
-| data  sss **bold**! | path to data files . | No |
-| engine | engine to be used for processing templates. | No |
-| ext    | extension for dest files.| Yes |
-
 
 * Links
   * [link text](http://dev.nodeca.com)
@@ -65,3 +45,10 @@ console.log(foo(5));
 
 [^first]: Footnote **can have markup**
 [^second]: Footnote text.
+
+
+| Option | Description | optional |
+| :------:| :-----------:| :---: |
+| data  sss **bold**! | path to data files . | No |
+| engine | engine to be used for processing templates. | No |
+| ext    | extension for dest files.| Yes |
