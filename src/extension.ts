@@ -19,14 +19,6 @@ async function initializeMarkdownUtils() {
 const aliases = emoji.flatMap(e => e.aliases).map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
 const regex = new RegExp(':(' + aliases.join('|') + '):', 'g');
 
-const symbols = [
-	'', ' ', '_', '●', '○', '◆', '◇', '█', '▒', '↪', '↩',
-	'│', '┬', '┼', '├', '┌', '─',
-	'⫸', '⫸⫸', '⫸⫸⫸', '⫸⫸⫸⫸', '⫸⫸⫸⫸⫸', '⫸⫸⫸⫸⫸⫸',
-	'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-	'code', 'fade', '◧'
-];
-
 const lookup: { [key: string]: string } = {};
 emoji.forEach(e => {
 	e.aliases.forEach(a => {
@@ -36,7 +28,7 @@ emoji.forEach(e => {
 
 function textReplacementDecoration(text: string, textDecoration = 'none'): vscode.TextEditorDecorationType {
 	return vscode.window.createTextEditorDecorationType({
-		textDecoration: 'none; font-size: 0.001em',
+		textDecoration: 'none; font-size: 0.0em',
 		rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
 		after: { contentText: text, textDecoration }
 	});
@@ -51,7 +43,7 @@ function fontSizeDecoration(fontSize: string): vscode.TextEditorDecorationType {
 
 function fullHeightDecoration(text: string, lineHeight: number, { compact = false, percentage = 30, extra = '' } = {}): vscode.TextEditorDecorationType {
 	return vscode.window.createTextEditorDecorationType({
-		textDecoration: 'none; font-size: 0.001em',
+		textDecoration: 'none; font-size: 0.0em',
 		rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
 		after: {
 			contentText: text,
@@ -288,31 +280,35 @@ class MarkdownDecorator {
 
 	private processTableRow(node: TableRow, lines: string[], columnsInfo: { align: string | null, maxWidth: number }[]) {
 		const { start, end } = node.position;
-		let column = start.column - 1;
+		let line = lines[start.line - 1];
+		let ecolumn = start.column - 1;
 		this.ranges['│'].push(new vscode.Range(
-			new vscode.Position(start.line - 1, column),
-			new vscode.Position(start.line - 1, column + 1)
+			new vscode.Position(start.line - 1, ecolumn),
+			new vscode.Position(start.line - 1, ecolumn)
 		));
-		column += 1;
+		this.ranges[''].push(new vscode.Range(
+			new vscode.Position(start.line - 1, ecolumn),
+			new vscode.Position(start.line - 1, ecolumn + 1)
+		));
 
 		for (let i = 0; i < node.children.length; ++i) {
 			let cell = node.children[i];
 			let info = columnsInfo[i];
 			const { start: s, end: e } = cell.position;
-			let width = e.column - s.column - 1;
+			let width = this.getTableCellWidth(cell);
+
+			ecolumn = Math.min(line.length - 1, e.column - 1);
 			if (width < info.maxWidth) {
 				let diff = info.maxWidth - width;
 				let key = `pad_${diff}`;
 				this.ranges[key].push(new vscode.Range(
-					new vscode.Position(s.line - 1, e.column - 1),
-					new vscode.Position(s.line - 1, e.column - 1)
+					new vscode.Position(s.line - 1, ecolumn),
+					new vscode.Position(s.line - 1, ecolumn)
 				));
 			}
-			let line = lines[start.line - 1];
-			column = Math.min(line.length - 1, e.column - 1);
 			this.ranges['│'].push(new vscode.Range(
-				new vscode.Position(start.line - 1, column),
-				new vscode.Position(start.line - 1, column + 1)
+				new vscode.Position(start.line - 1, ecolumn),
+				new vscode.Position(start.line - 1, ecolumn + 1)
 			));
 		}
 	}
@@ -350,20 +346,10 @@ class MarkdownDecorator {
 		column += 1;
 	}
 
-	private processTableCell(node: TableCell, lines: string[]): void {
-		const { start: s, end: e } = node.position;
-		const line = lines[s.line - 1];
-		const endCol = Math.min(e.column, line.trimEnd().length);
-		this.ranges['│'].push(new vscode.Range(
-			new vscode.Position(s.line - 1, endCol - 1),
-			new vscode.Position(s.line - 1, endCol)
-		));
-	}
-
 	private getTableColumnsInfo(node: Table): { align: string | null, maxWidth: number }[] {
 		const columnCount = node.align.length || 0;
 		const columnsInfo = Array.from({ length: columnCount }, (_, i) => ({
-			align: node.align[i] || null,
+			align: node.align[i] || 'left',
 			maxWidth: 0
 		}));
 
@@ -371,8 +357,7 @@ class MarkdownDecorator {
 		node.children.forEach(row => {
 			row.children.forEach((cell, i) => {
 				if (i < columnCount) {
-					const { start: s, end: e } = cell.position;
-					const width = e.column - s.column - 1;
+					const width = this.getTableCellWidth(cell);
 					if (width > columnsInfo[i].maxWidth) {
 						columnsInfo[i].maxWidth = width;
 					}
@@ -381,6 +366,26 @@ class MarkdownDecorator {
 		});
 
 		return columnsInfo;
+	}
+
+	private getTableCellWidth(node: TableCell) {
+		const { start: s, end: e } = node.position;
+		let width = e.column - s.column - 1;
+		function subtractions(child: any) {
+			let total = 0;
+			if (child.type === 'strong' || child.type === 'delete') {
+				total = 4;
+			} else if (child.type === 'emphasis') {
+				total = 2;
+			}
+			let children = child.children || [];
+			for (let ch of children) {
+				total += subtractions(ch);
+			}
+			return total;
+		}
+		width -= subtractions(node);
+		return width;
 	}
 
 	private processImage(node: Image, lines: string[]): void {
@@ -453,10 +458,10 @@ function createDecorationTypes(lineHeight: number): { [key: string]: vscode.Text
 	for (let diff = 1; diff < 500; ++diff) {
 		let key = `pad_${diff}`;
 		decorationTypes[key] = vscode.window.createTextEditorDecorationType({
-			textDecoration: 'none; font-size: 0.001em',
+			textDecoration: 'none; font-size: 0.0em',
 			rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
 			after: {
-				contentText: '▒'.repeat(diff),
+				contentText: 'M'.repeat(diff),
 				textDecoration: `none; font-size: ${lineHeight}em; letter-spacing: -0.2em`,
 				color: 'transparent'
 			}
