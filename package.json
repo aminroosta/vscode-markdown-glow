@@ -5,6 +5,8 @@
   "repository": {
     "url": "https://github.com/aminroosta/vscode-markdown-glow"
   },
+  "icon": "assets/icon.jpeg",
+  "publisher": "aminroosta",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.99.0"
